@@ -12,8 +12,7 @@ cols_to_drop = ['ThreewayCalls', 'CurrentEquipementDays', 'HandsetRefurbished', 
                 'BuysViaMailOrder', 'OwnsMotorcycle']
 
 # (1) Columns to drop
-def drop_columns(spark_df, columns_to_drop):
-    
+def drop_columns(spark_df, columns_to_drop):    
     '''
     desc:
         Drop specified columns from given churn dataframe
@@ -23,10 +22,33 @@ def drop_columns(spark_df, columns_to_drop):
     oupt:
         spark_df [df]: Updated PySpark dataframe not containing given columns
     '''
-    
+
     spark_df = spark_df.drop(*columns_to_drop)
     return spark_df
+
 
  # (2) Deal with missing values
 churn.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in churn.columns]).show()
 churn = churn.filter(churn.ServiceArea.isNotNull())
+
+
+# (3) Convert columns to correct data type
+string_columns = {"Churn", "ServiceArea", "ChildrenInHH", "HandsetWebCapable", "RespondsToMailOffers",
+                  "OptOutMailings", "NonUSTravel", "OwnsComputer", "HasCreditCard", "NewCellphoneUser",
+                  "MadeCallToRetentionTeam", "CreditRating", "PrizmCode", "Occupation", "MaritalStatus"}
+
+def casting(df, string_cols):   
+    '''
+    desc:
+        Convert select columns of type string into columns of type double.  
+    inpt:
+        df [df]:
+        string_cols [set]:
+    oupt:
+        df [df]:
+    '''
+    
+    for column in df.columns:
+        if column in string_cols:
+            df = df.withColumn(column, df[column].cast("double"))
+    return df
