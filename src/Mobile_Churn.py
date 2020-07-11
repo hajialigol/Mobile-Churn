@@ -1,19 +1,19 @@
-import pyspark
 import seaborn as sns
 import pandas as pd
 import os
-from pyspark.sql import functions as F
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import isnan, when, count, col
-from pyspark.sql.functions import mean as _mean, stddev as _stddev
-from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
+import pyspark
+import pyspark.ml.evaluation as evals
+import pyspark.ml.tuning as tune
+from pyspark.sql import functions as F, SparkSession
+from pyspark.sql.functions import isnan, when, count, col, mean as _mean, stddev as _stddev
+from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler, StandardScaler
+from pyspark.ml.classification import DecisionTreeClassifier, LogisticRegression
 from pyspark.ml import Pipeline
 
-spark = SparkSession.builder.getOrCreate()
-churn = spark.read.csv('cell2celltrain.csv', header = True)
 
-cols_to_drop = {'CustomerID','ThreewayCalls', 'CurrentEquipementDays', 'HandsetRefurbished', 'TruckOwner', 'RVOwner',
-                'Homeownership', 'BuysViaMailOrder', 'NotNewCellphoneUser', 'OwnsMotorcycle'}
+spark = SparkSession.builder.getOrCreate()
+churn = spark.read.csv(r'C:\Users\15712\Documents\GitHub Projects\Mobile-Churn\data\cell2celltrain.csv', header = True)
+
 
 # (1) Columns to drop
 def drop_columns(spark_df, columns_to_drop):
@@ -31,21 +31,23 @@ def drop_columns(spark_df, columns_to_drop):
     spark_df = spark_df.drop(*columns_to_drop)
     return spark_df
 
+cols_to_drop = {'CustomerID','ThreewayCalls', 'CurrentEquipementDays', 'HandsetRefurbished', 'TruckOwner', 'RVOwner',
+                'Homeownership', 'BuysViaMailOrder', 'NotNewCellphoneUser', 'OwnsMotorcycle'}
 churn = drop_columns(churn, cols_to_drop)
 
 
 # (2) Deal with missing values
+# ServiceArea
 churn = churn.filter(churn.ServiceArea.isNotNull())
+
+
+# HandsetPrice
 handset_mean = churn.select(_mean("HandsetPrice").alias("mean")).first()[0]
 churn = churn.withColumn("HandsetPrice", when(churn["HandsetPrice"] == "Unknown",
                                               handset_mean).otherwise(churn["HandsetPrice"]))
 
 
 # (3) Convert columns to correct data type
-string_columns = {"Churn", "ServiceArea", "ChildrenInHH", "HandsetWebCapable", "RespondsToMailOffers",
-                  "OptOutMailings", "NonUSTravel", "OwnsComputer", "HasCreditCard", "NewCellphoneUser",
-                  "MadeCallToRetentionTeam", "CreditRating", "PrizmCode", "Occupation", "MaritalStatus"}
-
 def casting(df, string_cols):   
     '''
     desc:
@@ -61,7 +63,15 @@ def casting(df, string_cols):
             df = df.withColumn(column, df[column].cast("double"))
     return df
 
+string_columns = {"Churn", "ServiceArea", "ChildrenInHH", "HandsetWebCapable", "RespondsToMailOffers",
+                  "OptOutMailings", "NonUSTravel", "OwnsComputer", "HasCreditCard", "NewCellphoneUser",
+                  "MadeCallToRetentionTeam", "CreditRating", "PrizmCode", "Occupation", "MaritalStatus"}
 churn = casting(churn, string_columns)
+
+
+# Convert response variable into integer column (default response variable name in PySpark is "label") 
+churn = churn.withColumn("label", col("Churn") == "Yes")
+churn = churn.withColumn("label", col("label").cast('int'))
 
 
 # (4) One-hot encode
@@ -96,3 +106,16 @@ def ml_pipeline(pyspark_df):
     pipeline = Pipeline(stages = pipeline_stages)
     piped_df = pipeline.fit(pyspark_df).transform(pyspark_df)
     return piped_df
+
+piped = ml_pipeline(churn)
+
+# (6) Standardize dataset
+training, testing = piped.randomSplit([.75, .25])
+
+# (7) Create evaluator
+evaluator = evals.BinaryClassificationEvaluator(metricName = "areaUnderROC")
+
+# (8) Create model
+lr = LogisticRegression()
+cross_validation = tune.CrossValidator(estimator = lr, evaluator = evaluator)
+lr.fit(training)
