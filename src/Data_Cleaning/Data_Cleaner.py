@@ -1,29 +1,28 @@
+# imports
 from pyspark.sql.functions import col, count
 
-# (1) Columns to drop_columns
+
 def drop_columns(spark_df, columns_to_drop):
-    
     '''
-    desc:
+    Desc:
         Drop specified columns from given churn dataframe
-    inpt:
+    Inpt:
         spark_df [df]: PySpark churn dataframe
         columns_to_drop [list]: List of columns to drop from given dataframe
-    oupt:
+    Oupt:
         spark_df [df]: Updated PySpark dataframe not containing given columns
-    '''
-    
+    '''  
     spark_df = spark_df.drop(*columns_to_drop)
     return spark_df
 
 
 def find_null_counts(pyspark_df):
     '''
-    desc:
+    Desc:
         This function finds the columns that contain "NA"s represented as strings along with their length.
-    inpt:
+    Inpt:
         pyspark_df [df]: Dataframe to find string "NA"s from.
-    oupt:
+    Oupt:
         columns_string_nas [dict]: Dictionary of columns that have "NA"s represented as strings with the
                                  key being the column name and the value being the amount of string "NA"s.
     '''
@@ -37,12 +36,12 @@ def find_null_counts(pyspark_df):
 
 def remove_nulls(pyspark_df, set_of_nulls):
     '''
-    desc:
+    Desc:
         This function removes "NA"s of type string.
-    inpt:
+    Inpt:
         pyspark_df [df]: PySpark dataframe to remove string nulls from.
         set_of_nulls [set]: Set containing the columns that have "NA"s represented as strings.
-    oupt:
+    Oupt:
         pyspark_df [df]: Updated PySpark dataframe without string "NA"s.
     '''
     for column in set_of_nulls:
@@ -52,12 +51,12 @@ def remove_nulls(pyspark_df, set_of_nulls):
 
 def casting(df, string_cols):   
     '''
-    desc:
+    Desc:
         Convert select columns of type string into columns of type double.  
-    inpt:
+    Inpt:
         df [df]:
         string_cols [set]:
-    oupt:
+    Oupt:
         df [df]:
     '''
     for column in df.columns:
