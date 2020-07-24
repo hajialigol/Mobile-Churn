@@ -16,6 +16,12 @@ data_directory = ''
 # Read data
 churn = spark.read.csv(data_directory, header = True)
 
+
+#####################
+#---Data Cleaning---#
+#####################
+
+
 # columns to drop
 cols_to_drop = {'CustomerID','ThreewayCalls', 'CurrentEquipementDays', 'HandsetRefurbished', 'TruckOwner', 'RVOwner',
                 'Homeownership', 'BuysViaMailOrder', 'NotNewCellphoneUser', 'OwnsMotorcycle'}
@@ -57,6 +63,12 @@ w = Window().orderBy(lit('A'))
 # Create column to produce row numbers
 churn = churn.withColumn("row_num", row_number().over(w))
 
+
+########################
+#---Machine Learning---#
+########################
+
+
 # Create machine learning pipeline
 piped = ml_pipeline(churn)
 
@@ -66,11 +78,20 @@ training, testing = piped.randomSplit([.75, .25])
 # Create evaluator
 evaluator = evals.BinaryClassificationEvaluator(metricName = "areaUnderROC")
 
-# Create logistic regression model
+# Create logistic regression and decision tree model
 lr = LogisticRegression()
+dt = DecisionTreeClassifier()
 
 # Create cross validation object
 cross_validation = tune.CrossValidator(estimator = lr, evaluator = evaluator)
 
-# Train model
-lr.fit(training)
+# Train logisitic regression and decision tree model
+fitted_model_lr = lr.fit(training)
+fitted_model_dt = dt.fit(training)
+
+# Plot ROC for logistic regression
+roc_plot(fitted_model_lr)
+
+# Compute accuracy for logistic regression and decision tree models
+lr_accuracy = test_roc_performance(fitted_model_lr, testing, evaluator)
+dt_accuracy = test_roc_performance(fitted_model_dt, testing, evaluator)
